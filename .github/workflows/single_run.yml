@@ -16,10 +16,16 @@ on:
 permissions:
   contents: write
 
+# 与 iCourse Check / Delete Course Data 共用同一队列，避免并发写 data 分支。
+concurrency:
+  group: icourse-db-write
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # 单次补跑通常几分钟；120 分钟足够，卡住时不必占满 6 小时。
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -157,7 +163,7 @@ jobs:
           fi
 
       - name: Run
-        timeout-minutes: 350
+        timeout-minutes: 110
         env:
           StuId: ${{ secrets.STUID }}
           UISPsw: ${{ secrets.UISPSW }}

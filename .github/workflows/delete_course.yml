@@ -16,8 +16,10 @@ on:
 permissions:
   contents: write
 
+# 与 iCourse Check / Single Run 共用同一队列：
+# 删除课次后同样要 re-shard + force-push data 分支，不能与它们并行。
 concurrency:
-  group: db-reset
+  group: icourse-db-write
   cancel-in-progress: false
 
 jobs:

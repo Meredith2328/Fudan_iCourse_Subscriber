@@ -82,11 +82,68 @@
 
 ### 第 6 步：运行
 
-- **自动运行**：默认每天 19:36（北京时间）自动执行
+- **自动运行**：每周二、周四 19:36（北京时间）自动执行（课程主要在这两天更新）
 - **手动触发**：进入仓库 → Actions → **iCourse Check** → Run workflow
 - **立即触发**：也可通过前端页面点击「触发订阅检查」按钮
 
 首次运行会处理所有已有录播，后续只处理新增课次。
+
+> [!IMPORTANT]
+> **关于「定时任务突然不跑了」**
+>
+> GitHub 的 `schedule` 本身不可靠，Fork 仓库还有额外限制，常见三种情况：
+>
+> 1. **Fork 默认不跑定时任务。** Fork 出来的仓库需要在 **Actions** 页面点一次
+>    「I understand my workflows, go ahead and enable them」才会启用。没点过的话，
+>    定时任务永远不会触发，手动 Run workflow 却正常。
+> 2. **公开仓库 60 天没有活动会自动停用定时任务。** 恢复方法：
+>    Actions → 左侧选中工作流 → 右上角 **Enable workflow**（或在本仓库任何一次
+>    push 之后，GitHub 会重新计算活动时间）。
+> 3. **`schedule` 不保证准点，也不保证每次都跑。** 负载高时可能延迟数十分钟，
+>    极端情况下会被丢弃。本仓库实测过：一个 scheduled run 卡在 queued 之后，
+>    后续定时任务就再也没被创建（2026-10-14 起停止，直到手动干预）。
+>    本项目已把卡死上限收到 120 分钟，并给所有写库任务加了同一并发队列，
+>    就是为了减少这种情况。
+>
+> 所以不要把定时任务当成唯一保障：每检查一次 `Actions` 页面即可确认；
+> 停更后手动点一次 **Run workflow** 就能补上。如果确实需要「雷打不动」，
+> 见下方「[彻底不依赖 GitHub 定时](#彻底不依赖-github-定时推荐做法)」。
+
+## 彻底不依赖 GitHub 定时（推荐做法）
+
+GitHub 的 `schedule` 在 Fork 里本来就不可靠，想避免「某天突然不跑了」，有两种做法。
+
+### 方案 A：外部 cron 调 `workflow_dispatch`（最稳，改动最小）
+
+定时任务完全交给外部服务，GitHub 只负责执行：
+
+1. 建一个 **Fine-grained PAT**：Repository access 只选本仓库，
+   Permissions 只给 **Actions: Read and write**（别的都不给）。
+2. 在 [cron-job.org](https://cron-job.org)（免费）建一个任务，时间设为
+   每周二、周四 19:36（时区选 Asia/Shanghai），请求：
+   - URL：`https://api.github.com/repos/<你的用户名>/Fudan_iCourse_Subscriber/actions/workflows/check.yml/dispatches`
+   - Method：`POST`
+   - Headers：`Authorization: Bearer <PAT>`、`Accept: application/vnd.github+json`
+   - Body：`{"ref":"main"}`
+
+这样即使 Fork 的 schedule 被停用，外部 cron 也会按时把任务推起来。
+PAT 只在本仓库有 `actions:write` 权限，泄露面很小，但仍建议只在 cron 服务里保存。
+
+### 方案 B：脱离 Fork，改为独立仓库（一劳永逸）
+
+Fork 的定时任务限制来自「它是 Fork」。把代码搬到一个独立仓库就没有这个限制：
+
+```bash
+git clone --mirror https://github.com/<你>/Fudan_iCourse_Subscriber.git repo.git
+cd repo.git && git push --mirror https://github.com/<你>/icourse-check.git
+```
+
+然后在 GitHub 上：新建 `icourse-check` 仓库 → 从 `Fudan_iCourse_Subscriber` 仓库的
+Secrets 页面把 Secret 逐个复制过去（Secrets 不能随 git 迁移）→ 在 Actions 里启用工作流
+→ Settings → Pages 指向新仓库。之后原 Fork 可以保留作为上游同步源，或直接删除。
+
+代价是要重配一次 Secrets 和 Pages；好处是彻底摆脱 Fork 的调度限制
+（独立公开仓库仍受 60 天无活动停用限制，但每次 push 都会重置，本项目每次写库都在 push）。
 
 ## 前端页面（索引与查看）
 

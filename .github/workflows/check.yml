@@ -2,18 +2,28 @@ name: iCourse Check
 
 on:
   schedule:
-    # Every day at 19:36 BTC (UTC + 8)
-    # 设计这个奇怪的时间是为了避免整点时的github队列峰值，避免排队过久。
-    - cron: "36 11 * * *"
+    # 每周二、周四 19:36（北京时间 = UTC+8），对应课程主要更新的日子。
+    # 非整点是为了避开 GitHub 整点调度峰值，减少排队时间。
+    # 注意：GitHub 的 schedule 不保证准点，负载高时可能延迟甚至跳过；
+    # 需要补跑时手动触发（Actions → iCourse Check → Run workflow）。
+    - cron: "36 11 * * 2,4"
   workflow_dispatch:
 
 permissions:
   contents: write
 
+# 所有会改写 data 分支的任务共用同一队列：同一时刻只跑一个，
+# 避免两个任务同时 re-shard / force-push 导致数据回退。
+concurrency:
+  group: icourse-db-write
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # 正常一次约 9 分钟，120 分钟足够覆盖模型下载 + 多课次处理。
+    # 不要用 6 小时：卡住时会白白占用整个上限（GitHub 单 job 上限也是 6 小时）。
+    timeout-minutes: 120
 
     steps:
       - uses: actions/checkout@v4
@@ -162,7 +172,7 @@ jobs:
           fi
 
       - name: Run
-        timeout-minutes: 350
+        timeout-minutes: 110
         env:
           StuId: ${{ secrets.STUID }}
           UISPsw: ${{ secrets.UISPSW }}
