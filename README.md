@@ -73,6 +73,11 @@
 | **DeepSeek**（`DEEPSEEK_API_KEY`） | [DeepSeek Platform](https://platform.deepseek.com/) | 注册赠额度 |
 | **Gemini**（`GEMINI_API_KEY`） | [Google AI Studio](https://aistudio.google.com/) | flash模型每日免费额度 |
 
+> 想加自己的服务商：在 `src/runtime/config.py` 的 `MODEL_PROVIDERS` 里加一项，
+> 同时在 `.github/workflows/check.yml` 和 `single_run.yml` 的 `Run` 步骤补上对应的
+> `env:`（例如 `MY_KEY: ${{ secrets.MY_KEY }}`）。**不要**为了省事改成
+> `${{ toJSON(secrets) }}`，那会被 GitHub 判定为疑似恶意工作流。
+
 ### 第 5 步：获取 QQ 邮箱 SMTP 授权码
 
 1. 登录 [QQ 邮箱](https://mail.qq.com) → 设置 → 账户与安全 → 安全设置
@@ -91,25 +96,32 @@
 > [!IMPORTANT]
 > **关于「定时任务突然不跑了」**
 >
-> GitHub 的 `schedule` 本身不可靠，Fork 仓库还有额外限制，常见三种情况：
+> 2026-10-14 本仓库的定时任务确实被 GitHub 停掉过，原因不是 `cron` 写错，而是
+> **GitHub 的「疑似恶意工作流」检测**：`iCourse Check` 当时用
+> `${{ toJSON(secrets) }}` 把所有 Secret 一起塞进环境变量，这正好命中检测规则。
+> 被判定后 workflow 需要人工批准才能运行，定时任务也随之停用（当时还有一个 run
+> 卡在 queued，永远没有分配到 job）。
 >
-> 1. **Fork 默认不跑定时任务。** Fork 出来的仓库需要在 **Actions** 页面点一次
->    「I understand my workflows, go ahead and enable them」才会启用。没点过的话，
->    定时任务永远不会触发，手动 Run workflow 却正常。
-> 2. **公开仓库 60 天没有活动会自动停用定时任务。** 本仓库在 2026-10-14 就是这样
->    被停用的（当时还有一个 run 卡在 queued，被停用后永远没有 job）。
->    恢复方法：Actions → 左侧选中工作流 → 右上角 **Enable workflow**。
->    为防止再次发生，`iCourse Check` 现在带一个 **keepalive** 步骤：距上次提交超过
->    30 天就往 main 提一次空更新，把 60 天计时器清零（所以 main 上会偶尔出现
->    `chore: keepalive ...` 的提交，属正常现象）。
-> 3. **`schedule` 不保证准点，也不保证每次都跑。** 负载高时可能延迟数十分钟，
->    极端情况下会被丢弃。本仓库实测过：一个 scheduled run 卡在 queued 之后，
->    后续定时任务就再也没被创建（2026-10-14 起停止，直到手动干预）。
->    本项目已把卡死上限收到 120 分钟，并给所有写库任务加了同一并发队列，
->    就是为了减少这种情况。
+> **现在的处理**：`check.yml` / `single_run.yml` 已改成逐个传
+> `DASHSCOPE_API_KEY`、`DEEPSEEK_API_KEY`、`GEMINI_API_KEY` 等环境变量，不再整包
+> 导出 secrets。如果你自己 fork 的是旧版本，请同步这个改动，否则你的定时任务在
+> 2026-10 之后同样会被停用。
 >
-> 所以不要把定时任务当成唯一保障：每检查一次 `Actions` 页面即可确认；
-> 停更后手动点一次 **Run workflow** 就能补上。如果确实需要「雷打不动」，
+> 除此之外，Fork 仓库还有几个坑：
+>
+> 1. **Fork 默认不跑定时任务。** Fork 出来的仓库要在 **Actions** 页面点一次
+>    「I understand my workflows, go ahead and enable them」才会启用。
+> 2. **公开仓库 60 天没有活动会自动停用定时任务。** 恢复方法：
+>    Actions → 左侧选中工作流 → 右上角 **Enable workflow**。
+>    本项目的 `iCourse Check` 带一个 **keepalive** 步骤：距上次提交超过 30 天就往
+>    main 提一次空更新，把 60 天计时器清零（main 上偶尔出现
+>    `chore: keepalive ...` 的提交属正常现象）。
+> 3. **`schedule` 不保证准点，也不保证每次都跑。** 负载高时可能延迟数十分钟甚至
+>    几小时，极端情况下会被丢弃。本项目已把卡死上限收到 120 分钟，并给所有写库任务
+>    加了同一并发队列，减少互相踩踏。
+>
+> 所以不要把定时任务当成唯一保障：每隔一段时间看一眼 `Actions` 页面；
+> 停更后手动点一次 **Run workflow** 就能补上。如果需要「雷打不动」，
 > 见下方「[彻底不依赖 GitHub 定时](#彻底不依赖-github-定时推荐做法)」。
 
 ## 彻底不依赖 GitHub 定时（推荐做法）
