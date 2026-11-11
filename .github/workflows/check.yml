@@ -28,6 +28,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Keepalive (avoid 60-day inactivity shutdown)
+        # GitHub 会自动停用「60 天没有活动」的公开仓库的 schedule，
+        # 而被停用后定时任务本身又不再产生活动，于是永久停摆。
+        # 这里每 30 天往 main 提一次空更新，把计时器清零。
+        continue-on-error: true
+        run: |
+          if [ -f .github/keepalive ] && [ -z "$(find .github/keepalive -mtime +30)" ]; then
+            echo "Keepalive is recent, skipping."
+            exit 0
+          fi
+          mkdir -p .github
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/keepalive
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive
+          git commit -q -m "chore: keepalive (reset 60-day schedule inactivity timer)"
+          git push
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

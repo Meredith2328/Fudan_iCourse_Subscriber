@@ -96,9 +96,12 @@
 > 1. **Fork 默认不跑定时任务。** Fork 出来的仓库需要在 **Actions** 页面点一次
 >    「I understand my workflows, go ahead and enable them」才会启用。没点过的话，
 >    定时任务永远不会触发，手动 Run workflow 却正常。
-> 2. **公开仓库 60 天没有活动会自动停用定时任务。** 恢复方法：
->    Actions → 左侧选中工作流 → 右上角 **Enable workflow**（或在本仓库任何一次
->    push 之后，GitHub 会重新计算活动时间）。
+> 2. **公开仓库 60 天没有活动会自动停用定时任务。** 本仓库在 2026-10-14 就是这样
+>    被停用的（当时还有一个 run 卡在 queued，被停用后永远没有 job）。
+>    恢复方法：Actions → 左侧选中工作流 → 右上角 **Enable workflow**。
+>    为防止再次发生，`iCourse Check` 现在带一个 **keepalive** 步骤：距上次提交超过
+>    30 天就往 main 提一次空更新，把 60 天计时器清零（所以 main 上会偶尔出现
+>    `chore: keepalive ...` 的提交，属正常现象）。
 > 3. **`schedule` 不保证准点，也不保证每次都跑。** 负载高时可能延迟数十分钟，
 >    极端情况下会被丢弃。本仓库实测过：一个 scheduled run 卡在 queued 之后，
 >    后续定时任务就再也没被创建（2026-10-14 起停止，直到手动干预）。
